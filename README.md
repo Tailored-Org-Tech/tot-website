@@ -8,7 +8,17 @@ A lightweight static website for Tailored Organizational Technologies LLC. It us
 python3 -m http.server 4173
 ```
 
-Open `http://localhost:4173` in a browser.
+Open `http://localhost:4173` in a browser. For this basic static server, use
+`/contact.html` to open the contact page; Cloudflare Pages automatically serves
+that file at the public `/contact` route. The Python server does not execute the
+Pages Function at `/api/contact`.
+
+The homepage contains the `#top`, `#services`, `#how`, `#about`, and `#contact`
+sections. The former About page redirects to `/#about` on Cloudflare Pages.
+Navigation remains visible at mobile widths. The header’s animation switch
+stores its preference under `tot-motion` in local storage and defaults to the
+device’s reduced-motion preference. Without JavaScript, homepage content and
+navigation remain available; the form explains that spam protection requires it.
 
 ## Deploy to Cloudflare Pages
 
