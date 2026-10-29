@@ -41,7 +41,22 @@ const mockProviders = (context, turnstile = {}) => {
 test('returns the public Turnstile site key without exposing secrets', async () => {
   const response = onRequestGet({ env });
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { turnstileSiteKey: 'turnstile-site-key' });
+  assert.deepEqual(await response.json(), {
+    turnstileSiteKey: 'turnstile-site-key',
+    contactHandler: 'resend-v2',
+    emailConfigured: true,
+    turnstileConfigured: true,
+  });
+});
+
+test('reports incomplete server configuration without exposing configuration values', async () => {
+  const response = onRequestGet({ env: { TURNSTILE_SITE_KEY: 'public-key' } });
+  assert.deepEqual(await response.json(), {
+    turnstileSiteKey: 'public-key',
+    contactHandler: 'resend-v2',
+    emailConfigured: false,
+    turnstileConfigured: false,
+  });
 });
 
 test('rejects incomplete submissions before calling external services', async () => {
@@ -84,4 +99,18 @@ test('verifies Turnstile and sends with Resend configuration', async (context) =
   assert.equal(email.reply_to, 'taylor@example.com');
   assert.equal(email.subject, 'New website inquiry');
   assert.match(email.html, /&lt;b&gt;Need an automation&lt;\/b&gt;/);
+});
+
+test('returns a safe error when Resend rejects a message', async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async (url) => url.includes('siteverify')
+    ? Response.json({ success: true, hostname: 'totsoftware.com', action: 'contact' })
+    : Response.json({ name: 'validation_error', message: 'provider detail' }, { status: 422 });
+
+  const response = await onRequestPost({ request: requestWith(validFields), env });
+  assert.equal(response.status, 502);
+  assert.deepEqual(await response.json(), {
+    error: 'Your message could not be sent. Please try again later.',
+  });
 });

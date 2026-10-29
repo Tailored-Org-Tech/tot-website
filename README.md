@@ -36,6 +36,8 @@ In the Cloudflare Pages project, configure the following for the **Production** 
 
 `TURNSTILE_SITE_KEY` is returned to the browser by the contact endpoint because it is a public identifier. The Turnstile and Resend secrets remain server-only. The endpoint accepts Turnstile tokens only when their action is `contact` and their hostname is `totsoftware.com` or `www.totsoftware.com`.
 
+After deployment, open `https://totsoftware.com/api/contact`. A current, fully configured deployment returns JSON containing `"contactHandler":"resend-v2"`, `"emailConfigured":true`, and `"turnstileConfigured":true`. The response also includes the public site key, but never either secret. If a submission fails, use **Workers & Pages → the Pages project → Logs** while submitting again; the Function records the failing provider and status without logging the visitor's message or any credentials.
+
 The `CONTACT_TO_EMAIL` value is read only from the server environment; visitors cannot select or override the recipient. Redeploy the Pages project after adding or changing variables.
 
 For local Turnstile testing, use Cloudflare's documented test keys and account for the production-only hostname and `contact` action validation.

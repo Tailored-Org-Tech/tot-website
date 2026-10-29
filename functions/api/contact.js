@@ -3,6 +3,7 @@ const MAX_REQUEST_BYTES = 32_000;
 const PRODUCTION_HOSTNAMES = new Set(['totsoftware.com', 'www.totsoftware.com']);
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const RESEND_EMAIL_URL = 'https://api.resend.com/emails';
+const CONTACT_HANDLER_VERSION = 'resend-v2';
 
 const json = (body, status = 200) =>
   Response.json(body, {
@@ -40,20 +41,38 @@ const verifyTurnstile = async (token, request, secret) => {
         remoteip: request.headers.get('CF-Connecting-IP') || undefined,
       }),
     });
-    if (!response.ok) return false;
+    if (!response.ok) {
+      console.error('Turnstile verification request rejected', { status: response.status });
+      return false;
+    }
 
     const result = await response.json();
-    return result.success === true
+    const valid = result.success === true
       && result.action === CONTACT_ACTION
       && PRODUCTION_HOSTNAMES.has(result.hostname);
+    if (!valid) {
+      console.error('Turnstile verification failed', {
+        success: result.success === true,
+        action: result.action || null,
+        hostname: result.hostname || null,
+        errorCodes: Array.isArray(result['error-codes']) ? result['error-codes'] : [],
+      });
+    }
+    return valid;
   } catch {
+    console.error('Turnstile verification request failed');
     return false;
   }
 };
 
 export const onRequestGet = ({ env }) => {
   if (!env.TURNSTILE_SITE_KEY) return json({ error: 'Contact form is not configured.' }, 503);
-  return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY });
+  return json({
+    turnstileSiteKey: env.TURNSTILE_SITE_KEY,
+    contactHandler: CONTACT_HANDLER_VERSION,
+    emailConfigured: Boolean(env.RESEND_API_KEY && env.CONTACT_FROM_EMAIL && env.CONTACT_TO_EMAIL),
+    turnstileConfigured: Boolean(env.TURNSTILE_SECRET_KEY),
+  });
 };
 
 export const onRequestPost = async ({ request, env }) => {
@@ -128,7 +147,17 @@ export const onRequestPost = async ({ request, env }) => {
   }
 
   if (!delivery.ok) {
-    console.error('Resend rejected contact email', delivery.status);
+    let providerError = {};
+    try {
+      const body = await delivery.json();
+      providerError = {
+        name: typeof body.name === 'string' ? body.name : undefined,
+        statusCode: typeof body.statusCode === 'number' ? body.statusCode : undefined,
+      };
+    } catch {
+      // Resend did not return JSON. The HTTP status still provides a useful diagnostic.
+    }
+    console.error('Resend rejected contact email', { status: delivery.status, ...providerError });
     return json({ error: 'Your message could not be sent. Please try again later.' }, 502);
   }
 
