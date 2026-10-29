@@ -1,3 +1,13 @@
+const stickyHeader = document.querySelector(".site-header");
+if (stickyHeader && "ResizeObserver" in window) {
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty(
+      "--header-height",
+      `${stickyHeader.getBoundingClientRect().height + 12}px`,
+    );
+  }).observe(stickyHeader);
+}
+
 const motionToggle = document.querySelector("[data-motion-toggle]");
 const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 let savedMotion = null;
